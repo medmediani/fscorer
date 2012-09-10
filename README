@@ -1,0 +1,102 @@
+DESCRIPTION
+===========
+
+fscorer is a C++ implementation of the phrase scoring in phrase-based systems 
+that helps to exploit the available computing resources more efficiently 
+and trains very large systems in reasonable time without sacrificing 
+the system's performance in terms of Bleu score.
+It was developed and tested in a Linux environment, with GNU g++.
+
+DEPENDENCIES
+============
+
+This is the multithreaded version. It depends on:
+    - OpenMP: 
+        This library should be available by default in most POSIX systems.
+    - zlib:
+        This library should be available if reading/writing compressed files are desired. 
+        It is available by default on POSIX systems.
+    - STXXL: 
+        Download and installation instructions can be found at: http://stxxl.sourceforge.net/
+        Please build it in the parallel mode (e.g. make library_g++_pmode)
+
+COMPILING
+=========
+
+Edit the Makefile in order to specify the STXXL library path and to include its 
+environment variables (this corresponds to the first uncommented lines in the Makefile).
+The maximum value of key strings is 250 (this worked very well for our fr-en systems), 
+it can be set to any other value. However, the larger the slower and the more disk space needed.
+Proceed by issuing make command (assuming that this corresponds to GNU make).
+
+USAGE
+=====
+
+The number of threads will be equal to the number of processors on the machine by default.
+This behaviour can be modified by setting OMP_NUM_THREADS variable.
+
+Examples
+--------
+fscore -h
+This will print all the possible flags and options.
+
+
+OMP_NUM_THREADS=8 fscore -o pt.stxxl -b 1024 -w .,/export/data1/data -p -n test-dev.ngrams -d model -u -e model/extract.0-0
+OMP_NUM_THREADS=8: 8 threads will be used.
+-o pt.stxxl: the ouptut file name (phrase table) is pt.stxxl
+-b 1024: 1GiB is used as sort memory by thread. 
+ Thus the total sorting memory will be 8*1GiB=8GiB (The higher this memory the better)
+-w .,/export/data1/data: two disks are used as external memory (the higher the number of disks the faster the sort). 
+ First disk is the current directory. The second is at /export/data1/data.
+-p: this instructs the program to prepare the STXXL disk space. In this case it is autogrow, because the size is not specified. 
+ This flag is necessary in order to take account of the working directories, otherwise the working directories will be set to /tmp.
+-n test-dev.ngrams: when writing out the phrase table, the program will write an additional smaller phrase table 
+ whose source phrases are only those which match at least one of the ngrams given in the file test-dev.ngrams.
+-d model: the output directory is ./model. The phrase table, the smaller phrase table, and the global count file will be written in this directory.
+-u : this tells the program to read the extract file unzipped (better balance between threads and faster).
+-e model/extract.0-0: our extract file is unzipped at model/extract.0-0. 
+ The lexical dictionaries will be the default (i.e. model/lex.0-0.e2f and model/lex.0-0.f2e)
+
+OMP_NUM_THREADS=8 fscore -m testset.txt -o pt -p -c -w /export/data1/data/ -r none
+Here the input files are all the default (model/lex.0-0.* and model/extract.0-0.gz)
+-m testset.txt: a set of ngrams (up to 7) will be created from this test set and a smaller phrase table will be also written
+-c: the ouput files will be zipped (the big and the small phrase tables).
+-r none: the relative frequencies will not be smoothed.
+
+RELATIVE FREQUENCY SMOOTHING
+============================
+
+This tool includes support for a couple of conditional probability smoothing techniques (Please see -r option in the help message):
+
+none: uses no smoothing (relative frequency).
+
+Kneser-Ney smoothing: This is the default since its results were consistently better. It is a fixed-discounting method with three discounting coefficients. 
+ Please refer to Foster's paper for more details.
+
+Witten-bell smoothing: it adds a discounting factor to the dinominator equals to the number of unique source phrases observed with the target phrase.
+ P(s|t)=#(s,t)/[#(t)+#unique-source(t)]
+
+Good-turing smoothing: as explained by Foster, except that the counting function is regressed from only the first four counts (i.e c_1, c_2, c_3, c_4)
+
+LEXICAL SCORE AGGREGATION
+=========================
+
+If a phrase pair is observed with different alignments and different lexical scores, 
+one of the following methods can be used to chose one for the output phrase table (please see -a option in the help message):
+
+maximum score value: picks the maximum among all lexical scores (this is the default, even though, based on our experiments it is not clear whether this is better than the average)
+
+average score value: computes the average over all lexical scores.
+
+most occurring value: takes the value with maximum number of occurrences.
+
+REFERENCES
+==========
+
+Foster, George F., Roland Kuhn, and Howard Johnson. Phrasetable smoothing for statistical machine translation. In EMNLP, pages 53-61, 2006.
+
+
+
+
+______________________________________________________
+Please report any feedback to: mohammed.mediani@kit.edu
